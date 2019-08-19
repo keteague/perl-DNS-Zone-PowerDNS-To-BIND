@@ -65,6 +65,7 @@ sub gen_bind_zone_from_powerdns_db {
         or die "No such domain in the database: '$domain'";
 
     my @res;
+    push @res, '; generated from PowerDNS database on '.scalar(gmtime)." UTC\n";
 
     my $sth_sel_soa_record = $dbh->prepare("SELECT * FROM records WHERE domain_id=? AND disabled=0 AND type='SOA'");
     $sth_sel_soa_record->execute($domain_rec->{id});
