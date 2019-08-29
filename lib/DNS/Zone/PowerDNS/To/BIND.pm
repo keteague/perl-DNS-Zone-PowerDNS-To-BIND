@@ -6,6 +6,7 @@ package DNS::Zone::PowerDNS::To::BIND;
 use 5.010001;
 use strict;
 use warnings;
+use Log::ger;
 
 use Exporter 'import';
 our @EXPORT_OK = qw(
@@ -51,6 +52,35 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
             schema => ['net::hostname*'],
             req => 1,
             pos => 1,
+        },
+        workaround_no_ns => {
+            summary => "Whether to add some NS records for '' when there are no NS records for it",
+            description => <<'_',
+
+This is a workaround for a common misconfiguration in PowerDNS DB. This will add
+some NS records specified in `default_ns`.
+
+_
+            schema => 'bool*',
+            default => 1,
+            tags => ['category:workaround'],
+        },
+        workaround_cname_and_other_data => {
+            summary => "Whether to avoid having CNAME record for a name as well as other record types",
+            description => <<'_',
+
+This is a workaround for a common misconfiguration in PowerDNS DB. Bind will
+reject the whole zone if there is CNAME record for a name (e.g. 'www') as well
+as other record types (e.g. 'A' or 'TXT'). The workaround is to skip those A/TXT
+records and only keep the CNAME record.
+
+_
+            schema => 'bool*',
+            default => 1,
+            tags => ['category:workaround'],
+        },
+        default_ns => {
+            schema => ['array*', of=>'net::hostname*'],
         },
     },
     args_rels => {
@@ -103,9 +133,64 @@ sub gen_bind_zone_from_powerdns_db {
         my $sth_sel_record = $dbh->prepare("SELECT * FROM records WHERE domain_id=? AND disabled=0 ORDER BY id");
         $sth_sel_record->execute($domain_rec->{id});
         while (my $rec = $sth_sel_record->fetchrow_hashref) {
+            $rec->{name} =~ s/\.?\Q$domain\E\z//;
             push @recs, $rec;
         }
+    }
 
+  WORKAROUND_NO_NS:
+    {
+        # when there are no NS records for host '', bind will complain and
+        # reject the zone. we add default_ns in that case.
+        last unless $args{workaround_no_ns} // 1;
+
+        my $has_ns_record_for_domain;
+        for (@recs) {
+            if ($_->{type} eq 'NS' && $_->{name} eq '') { $has_ns_record_for_domain++; last }
+        }
+
+        last if $has_ns_record_for_domain;
+
+        die "Please specify one or more default NS (`default_ns`) for --workaround-no-ns"
+            unless $args{default_ns} && @{ $args{default_ns} };
+        log_warn "There are no NS records for host '', assuming misconfiguration, adding workaround: some default NS: %s", $args{default_ns};
+        for my $ns (@{ $args{default_ns} }) {
+            push @recs, {type=>'NS', name=>'', content=>$ns};
+        }
+    }
+
+  WORKAROUND_CNAME_AND_OTHER_DATA:
+    {
+        # for the same non-wildcard host, if there's a CNAME record there should
+        # not be any other types of record. if there are, we add a workaround
+        # and ignore those records and choose CNAME instead. this is often a
+        # mistake made when configuring google apps domains.
+        last unless $args{workaround_cname_and_other_data} // 1;
+
+        my %cname_for; # key=host(name)
+        for (@recs) {
+            next if $_->{name} =~ /\*/;
+            next unless $_->{type} eq 'CNAME';
+            $cname_for{ $_->{name} }++;
+        }
+
+        my @recs0 = @recs;
+        @recs = ();
+        for (@recs0) {
+            goto PASS if $_->{name} =~ /\*/;
+            goto PASS if $_->{type} eq 'CNAME';
+            if ($cname_for{ $_->{name} }) {
+                log_warn "There is a CNAME for name=%s as well as %s record, assuming misconfiguration, adding workaround: skipping the %s record (%s)",
+                    $_->{name}, $_->{type}, $_->{type}, $_;
+                next;
+            }
+          PASS:
+            push @recs, $_;
+        }
+    }
+
+  SORT_RECORDS:
+    {
         # bind requires some particular ordering of records...
         @recs = sort {
             my $cmp;
@@ -132,7 +217,6 @@ sub gen_bind_zone_from_powerdns_db {
         my $type = $rec->{type};
         next if $type eq 'SOA';
         my $name = $rec->{name};
-        $name =~ s/\.?\Q$domain\E\z//;
         push @res, "$name ", ($rec->{ttl} ? "$rec->{ttl} ":""), "IN ";
         if ($type eq 'A') {
             push @res, "A $rec->{content}\n";
