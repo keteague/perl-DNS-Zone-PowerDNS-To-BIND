@@ -65,6 +65,18 @@ _
             default => 1,
             tags => ['category:workaround'],
         },
+        workaround_root_cname => {
+            summary => "Whether to avoid having CNAME record for a name as well as other record types",
+            description => <<'_',
+
+CNAME on a root node (host='') does not make sense, so the workaround is to
+ignore the root CNAME.
+
+_
+            schema => 'bool*',
+            default => 1,
+            tags => ['category:workaround'],
+        },
         workaround_cname_and_other_data => {
             summary => "Whether to avoid having CNAME record for a name as well as other record types",
             description => <<'_',
@@ -157,6 +169,24 @@ sub gen_bind_zone_from_powerdns_db {
         for my $ns (@{ $args{default_ns} }) {
             push @recs, {type=>'NS', name=>'', content=>$ns};
         }
+    }
+
+  WORKAROUND_ROOT_CNAME:
+    {
+        # CNAME does not make sense for a root node (name=''), so the workaround
+        # is to ignore this record.
+        last unless $args{workaround_root_cname} // 1;
+
+        my @recs0 = @recs;
+        @recs = ();
+        for (@recs0) {
+            if ($_->{type} eq 'CNAME' && $_->{name} eq '') {
+                log_warn "There is a CNAME record for host '', assuming misconfiguration, adding workaround: skipping this CNAME record (%s)", $_;
+                next;
+            }
+            push @recs, $_;
+        }
+
     }
 
   WORKAROUND_CNAME_AND_OTHER_DATA:
