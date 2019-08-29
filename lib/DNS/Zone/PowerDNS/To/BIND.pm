@@ -112,6 +112,8 @@ sub gen_bind_zone_from_powerdns_db {
             push @res, "NS $rec->{content}.\n";
         } elsif ($type eq 'SSHFP') {
             push @res, "SSHFP $rec->{content}\n";
+        } elsif ($type eq 'SRV') {
+            push @res, "SRV $rec->{content}\n";
         } elsif ($type eq 'TXT') {
             push @res, "TXT ", _encode_txt($rec->{content}), "\n";
         } else {
