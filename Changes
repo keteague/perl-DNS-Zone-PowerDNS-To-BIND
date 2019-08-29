@@ -1,3 +1,8 @@
+0.004   2019-08-29  Released-By: PERLANCAR; Urgency: medium
+
+	- Support SRV records.
+
+
 0.003   2019-08-29  Released-By: PERLANCAR; Urgency: medium
 
 	- Handle SSHFP records.
