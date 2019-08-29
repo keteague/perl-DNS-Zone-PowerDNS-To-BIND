@@ -43,8 +43,9 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
         },
         domain => {
             schema => ['net::hostname*'], # XXX domainname
-            req => 1,
-            pos => 0,
+        },
+        domain_id => {
+            schema => ['uint*'], # XXX domainname
         },
         master_host => {
             schema => ['net::hostname*'],
@@ -53,7 +54,7 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
         },
     },
     args_rels => {
-        req_one => ['dbh', 'db_dsn'],
+        req_one => ['domain', 'domain_id'],
     },
     result_naked => 1,
 };
@@ -70,10 +71,17 @@ sub gen_bind_zone_from_powerdns_db {
             $args{db_dsn}, $args{db_user}, $args{db_password}, {RaiseError=>1});
     }
 
-    my $sth_sel_domain = $dbh->prepare("SELECT * FROM domains WHERE name=?");
-    $sth_sel_domain->execute($domain);
+    my $sth_sel_domain;
+    if (defined $args{domain_id}) {
+        $sth_sel_domain = $dbh->prepare("SELECT * FROM domains WHERE id=?");
+        $sth_sel_domain->execute($args{domain_id});
+    } else {
+        $sth_sel_domain = $dbh->prepare("SELECT * FROM domains WHERE name=?");
+        $sth_sel_domain->execute($domain);
+    }
     my $domain_rec = $sth_sel_domain->fetchrow_hashref
         or die "No such domain in the database: '$domain'";
+    $domain //= $domain_rec->{name};
 
     my @res;
     push @res, '; generated from PowerDNS database on '.scalar(gmtime)." UTC\n";
