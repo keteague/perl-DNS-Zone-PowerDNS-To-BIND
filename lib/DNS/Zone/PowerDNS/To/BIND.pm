@@ -25,6 +25,9 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
     summary => 'Generate BIND zone configuration from '.
         'information in PowerDNS database',
     args => {
+        dbh => {
+            schema => 'obj*',
+        },
         db_dsn => {
             schema => 'str*',
             tags => ['category:database'],
@@ -49,15 +52,23 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
             pos => 1,
         },
     },
+    args_rels => [
+        req_one => ['dbh', 'db_dsn'],
+    ],
     result_naked => 1,
 };
 sub gen_bind_zone_from_powerdns_db {
     my %args = @_;
     my $domain = $args{domain};
 
-    require DBIx::Connect::Any;
-    my $dbh = DBIx::Connect::Any->connect(
-        $args{db_dsn}, $args{db_user}, $args{db_password}, {RaiseError=>1});
+    my $dbh;
+    if ($args{dbh}) {
+        $dbh = $args{dbh};
+    } else {
+        require DBIx::Connect::Any;
+        $dbh = DBIx::Connect::Any->connect(
+            $args{db_dsn}, $args{db_user}, $args{db_password}, {RaiseError=>1});
+    }
 
     my $sth_sel_domain = $dbh->prepare("SELECT * FROM domains WHERE name=?");
     $sth_sel_domain->execute($domain);
