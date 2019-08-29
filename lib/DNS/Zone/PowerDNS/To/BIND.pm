@@ -225,10 +225,10 @@ sub gen_bind_zone_from_powerdns_db {
         @recs = sort {
             my $cmp;
 
-            # NS records first ...
-            my $a_is_ns = $a->{type} eq 'NS' ? 0 : 1;
-            my $b_is_ns = $b->{type} eq 'NS' ? 0 : 1;
-            return $cmp if $cmp = $a_is_ns <=> $b_is_ns;
+            # root node firsts
+            my $a_is_root = $a->{name} eq '' ? 0 : 1;
+            my $b_is_root = $b->{name} eq '' ? 0 : 1;
+            return $cmp if $cmp = $a_is_root <=> $b_is_root;
 
             # we need to sort wildcard records RIGHT above non-wildcard records;
             # otherwise we might get, e.g. 'CNAME and other data' error, where
