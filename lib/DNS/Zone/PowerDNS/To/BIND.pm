@@ -191,15 +191,14 @@ sub gen_bind_zone_from_powerdns_db {
 
   WORKAROUND_CNAME_AND_OTHER_DATA:
     {
-        # for the same non-wildcard host, if there's a CNAME record there should
-        # not be any other types of record. if there are, we add a workaround
-        # and ignore those records and choose CNAME instead. this is often a
-        # mistake made when configuring google apps domains.
+        # for the same host, if there's a CNAME record there should not be any
+        # other types of record. if there are, we add a workaround and ignore
+        # those records and choose CNAME instead. this is often a mistake made
+        # when configuring google apps domains.
         last unless $args{workaround_cname_and_other_data} // 1;
 
         my %cname_for; # key=host(name)
         for (@recs) {
-            next if $_->{name} =~ /\*/;
             next unless $_->{type} eq 'CNAME';
             $cname_for{ $_->{name} }++;
         }
@@ -207,7 +206,6 @@ sub gen_bind_zone_from_powerdns_db {
         my @recs0 = @recs;
         @recs = ();
         for (@recs0) {
-            goto PASS if $_->{name} =~ /\*/;
             goto PASS if $_->{type} eq 'CNAME';
             if ($cname_for{ $_->{name} }) {
                 log_warn "There is a CNAME for name=%s as well as %s record, assuming misconfiguration, adding workaround: skipping the %s record (%s)",
