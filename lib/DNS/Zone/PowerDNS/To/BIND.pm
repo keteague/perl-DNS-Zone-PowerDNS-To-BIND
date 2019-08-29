@@ -52,9 +52,9 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
             pos => 1,
         },
     },
-    args_rels => [
+    args_rels => {
         req_one => ['dbh', 'db_dsn'],
-    ],
+    },
     result_naked => 1,
 };
 sub gen_bind_zone_from_powerdns_db {
