@@ -1,3 +1,12 @@
+0.003   2019-08-29  Released-By: PERLANCAR; Urgency: medium
+
+	- Handle SSHFP records.
+
+	- Accept domain_id as alternative to domain name.
+
+	- Fix Rinci metadata.
+
+
 0.002   2019-08-29  Released-By: PERLANCAR; Urgency: medium
 
 	- Allow passing dbh instead of db_dsn/db_user/db_password.
