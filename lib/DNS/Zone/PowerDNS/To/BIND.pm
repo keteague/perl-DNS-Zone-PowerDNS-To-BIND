@@ -44,14 +44,10 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
         },
         domain => {
             schema => ['net::hostname*'], # XXX domainname
+            pos => 0,
         },
         domain_id => {
             schema => ['uint*'], # XXX domainname
-        },
-        master_host => {
-            schema => ['net::hostname*'],
-            req => 1,
-            pos => 1,
         },
         workaround_no_ns => {
             summary => "Whether to add some NS records for '' when there are no NS records for it",
@@ -278,7 +274,6 @@ sub gen_bind_zone_from_powerdns_db {
  say gen_bind_zone_from_powerdns_db(
      db_dsn => 'dbi:mysql:database=pdns',
      domain => 'example.com',
-     master_host => 'dns1.example.com',
  );
 
 will output something like:
