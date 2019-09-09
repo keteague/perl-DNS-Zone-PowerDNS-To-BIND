@@ -8,6 +8,8 @@ use strict;
 use warnings;
 use Log::ger;
 
+use DNS::Zone::Struct::Common::BIND;
+
 use Exporter 'import';
 our @EXPORT_OK = qw(
                        gen_bind_zone_from_powerdns_db
@@ -61,18 +63,7 @@ _
             default => 1,
             tags => ['category:workaround'],
         },
-        workaround_root_cname => {
-            summary => "Whether to avoid having CNAME record for a name as well as other record types",
-            description => <<'_',
-
-CNAME on a root node (host='') does not make sense, so the workaround is to
-ignore the root CNAME.
-
-_
-            schema => 'bool*',
-            default => 1,
-            tags => ['category:workaround'],
-        },
+        %DNS::Zone::Struct::Common::BIND::arg_workaround_root_cname,
         workaround_cname_and_other_data => {
             summary => "Whether to avoid having CNAME record for a name as well as other record types",
             description => <<'_',
@@ -148,100 +139,25 @@ sub gen_bind_zone_from_powerdns_db {
 
   WORKAROUND_NO_NS:
     {
-        # when there are no NS records for host '', bind will complain and
-        # reject the zone. we add default_ns in that case.
         last unless $args{workaround_no_ns} // 1;
-
-        my $has_ns_record_for_domain;
-        for (@recs) {
-            if ($_->{type} eq 'NS' && $_->{name} eq '') { $has_ns_record_for_domain++; last }
-        }
-
-        last if $has_ns_record_for_domain;
-
-        die "Please specify one or more default NS (`default_ns`) for --workaround-no-ns"
-            unless $args{default_ns} && @{ $args{default_ns} };
-        log_warn "There are no NS records for host '', assuming misconfiguration, adding workaround: some default NS: %s", $args{default_ns};
-        for my $ns (@{ $args{default_ns} }) {
-            push @recs, {type=>'NS', name=>'', content=>$ns};
-        }
+        DNS::Zone::Struct::Common::BIND::_workaround_no_ns(\@recs, $args{default_ns});
     }
 
   WORKAROUND_ROOT_CNAME:
     {
-        # CNAME does not make sense for a root node (name=''), so the workaround
-        # is to ignore this record.
         last unless $args{workaround_root_cname} // 1;
-
-        my @recs0 = @recs;
-        @recs = ();
-        for (@recs0) {
-            if ($_->{type} eq 'CNAME' && $_->{name} eq '') {
-                log_warn "There is a CNAME record for host '', assuming misconfiguration, adding workaround: skipping this CNAME record (%s)", $_;
-                next;
-            }
-            push @recs, $_;
-        }
-
+        DNS::Zone::Struct::Common::BIND::_workaround_root_cname(\@recs);
     }
 
   WORKAROUND_CNAME_AND_OTHER_DATA:
     {
-        # for the same host, if there's a CNAME record there should not be any
-        # other types of record. if there are, we add a workaround and ignore
-        # those records and choose CNAME instead. this is often a mistake made
-        # when configuring google apps domains.
         last unless $args{workaround_cname_and_other_data} // 1;
-
-        my %cname_for; # key=host(name)
-        for (@recs) {
-            next unless $_->{type} eq 'CNAME';
-            $cname_for{ $_->{name} }++;
-        }
-
-        my @recs0 = @recs;
-        @recs = ();
-        for (@recs0) {
-            goto PASS if $_->{type} eq 'CNAME';
-            if ($cname_for{ $_->{name} }) {
-                log_warn "There is a CNAME for name=%s as well as %s record, assuming misconfiguration, adding workaround: skipping the %s record (%s)",
-                    $_->{name}, $_->{type}, $_->{type}, $_;
-                next;
-            }
-          PASS:
-            push @recs, $_;
-        }
+        DNS::Zone::Struct::Common::BIND::_workaround_cname_and_other_data(\@recs);
     }
 
   SORT_RECORDS:
     {
-        # bind requires some particular ordering of records...
-        @recs = sort {
-            my $cmp;
-
-            # sorting by host
-
-            # root (host='') node first
-            my $a_is_root = $a->{name} eq '' ? 0 : 1;
-            my $b_is_root = $b->{name} eq '' ? 0 : 1;
-            return $cmp if $cmp = $a_is_root <=> $b_is_root;
-
-            # wildcard last
-            my $a_has_wildcard = $a->{name} =~ /\*/ ? 1 : 0;
-            my $b_has_wildcard = $b->{name} =~ /\*/ ? 1 : 0;
-            return $cmp if $cmp = $a_has_wildcard <=> $b_has_wildcard;
-
-            # sort by host
-            return $cmp if $cmp = $a->{name} cmp $b->{name};
-
-            # just to be nice: sort by record type: NS first, then A, then MX,
-            # then the rest
-            my $a_type = $a->{type} eq 'NS' ? 1 : $a->{type} eq 'A' ? 2 : $a->{type} eq 'MX' ? 3 : $a->{type};
-            my $b_type = $b->{type} eq 'NS' ? 1 : $b->{type} eq 'A' ? 2 : $b->{type} eq 'MX' ? 3 : $b->{type};
-            return $cmp if $cmp = $a_type cmp $b_type;
-
-            0;
-        } @recs;
+        DNS::Zone::Struct::Common::BIND::_sort_records(\@recs);
     }
 
     for my $rec (@recs) {
