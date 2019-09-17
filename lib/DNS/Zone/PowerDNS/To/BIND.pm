@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use Log::ger;
 
+use DNS::Zone::Struct::Common;
 use DNS::Zone::Struct::Common::BIND;
 
 use Exporter 'import';
@@ -51,33 +52,10 @@ $SPEC{gen_bind_zone_from_powerdns_db} = {
         domain_id => {
             schema => ['uint*'], # XXX domainname
         },
-        workaround_no_ns => {
-            summary => "Whether to add some NS records for '' when there are no NS records for it",
-            description => <<'_',
-
-This is a workaround for a common misconfiguration in PowerDNS DB. This will add
-some NS records specified in `default_ns`.
-
-_
-            schema => 'bool*',
-            default => 1,
-            tags => ['category:workaround'],
-        },
+        %DNS::Zone::Struct::Common::arg_workaround_convert_underscore_in_host,
         %DNS::Zone::Struct::Common::BIND::arg_workaround_root_cname,
-        workaround_cname_and_other_data => {
-            summary => "Whether to avoid having CNAME record for a name as well as other record types",
-            description => <<'_',
-
-This is a workaround for a common misconfiguration in PowerDNS DB. Bind will
-reject the whole zone if there is CNAME record for a name (e.g. 'www') as well
-as other record types (e.g. 'A' or 'TXT'). The workaround is to skip those A/TXT
-records and only keep the CNAME record.
-
-_
-            schema => 'bool*',
-            default => 1,
-            tags => ['category:workaround'],
-        },
+        %DNS::Zone::Struct::Common::BIND::arg_workaround_cname_and_other_data,
+        %DNS::Zone::Struct::Common::BIND::arg_workaround_cname_and_other_data,
         default_ns => {
             schema => ['array*', of=>'net::hostname*'],
         },
@@ -135,6 +113,12 @@ sub gen_bind_zone_from_powerdns_db {
             $rec->{name} =~ s/\.?\Q$domain\E\z//;
             push @recs, $rec;
         }
+    }
+
+  WORKAROUND_CONVERT_UNDERSCORE_IN_HOST:
+    {
+        last unless $args{workaround_convert_underscore_in_host} // 1;
+        DNS::Zone::Struct::Common::_workaround_convert_underscore_in_host(\@recs);
     }
 
   WORKAROUND_NO_NS:
