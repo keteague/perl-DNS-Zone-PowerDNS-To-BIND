@@ -153,12 +153,16 @@ sub gen_bind_zone_from_powerdns_db {
         push @res, "$name ", ($rec->{ttl} ? "$rec->{ttl} ":""), "IN ";
         if ($type eq 'A') {
             push @res, "A $rec->{content}\n";
+	} elsif ($type eq 'AAAA') {
+            push @res, "AAAA $rec->{content}\n";
         } elsif ($type eq 'CNAME') {
             push @res, "CNAME $rec->{content}.\n";
         } elsif ($type eq 'MX') {
             push @res, "MX $rec->{prio} $rec->{content}.\n";
         } elsif ($type eq 'NS') {
             push @res, "NS $rec->{content}.\n";
+	} elsif ($type eq 'PTR') {
+            push @res, "PTR $rec->{content}.\n";
         } elsif ($type eq 'SSHFP') {
             push @res, "SSHFP $rec->{content}\n";
         } elsif ($type eq 'SRV') {

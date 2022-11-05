@@ -2,3 +2,4 @@ DNS-Zone-PowerDNS-To-BIND-*
 .build
 *~
 nytprof*
+.DS_Store
