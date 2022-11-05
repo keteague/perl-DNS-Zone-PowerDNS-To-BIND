@@ -1,8 +1,5 @@
 package DNS::Zone::PowerDNS::To::BIND;
 
-# DATE
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
@@ -15,6 +12,11 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
                        gen_bind_zone_from_powerdns_db
                );
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 our %SPEC;
 
